@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Editor SM64 Web</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    canvas { display: block; }
+    #btns {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 1;
+      background: rgba(255,255,255,0.8);
+      padding: 10px;
+      border-radius: 8px;
+    }
+    button {
+      margin: 2px;
+      padding: 5px 10px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div id="btns">
+    <button onclick="addEnemy()">Adicionar Inimigo</button>
+    <button onclick="addBlock()">Adicionar Bloco</button>
+    <button onclick="addBigBlock()">Adicionar Bloco Grande</button>
+    <button onclick="deleteSelected()">🗑 Apagar Selecionado</button>
+    <button onclick="exportarJSON()">Exportar JSON</button>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
+  <script>
+    let cena = new THREE.Scene();
+    cena.background = new THREE.Color(0x87CEEB); // Céu azul
+
+    let camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+    let render = new THREE.WebGLRenderer({ antialias: true });
+    render.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(render.domElement);
+
+    let controles = new THREE.OrbitControls(camera, render.domElement);
+    controles.enableDamping = true;
+    controles.dampingFactor = 0.05;
+    controles.screenSpacePanning = false;
+    controles.minDistance = 5;
+    controles.maxDistance = 100;
+    controles.target.set(0, 0, 0);
+
+    let objetos = [];
+    let objetoSelecionado = null;
+
+    let geometriaChao = new THREE.BoxGeometry(40, 1, 40);
+    let materialChao = new THREE.MeshBasicMaterial({color: 0x808080});
+    let chao = new THREE.Mesh(geometriaChao, materialChao);
+    cena.add(chao);
+    chao.position.y = -0.5;
+
+    camera.position.set(10, 15, 20);
+    camera.lookAt(0, 0, 0);
+
+    function criarObjeto(geo, mat, tipo) {
+      let obj = new THREE.Mesh(geo, mat);
+      obj.position.set(Math.random()*10-5, 0.5, Math.random()*10-5);
+      obj.userData.type = tipo;
+      cena.add(obj);
+      objetos.push(obj);
+    }
+
+    function addEnemy() {
+      let geo = new THREE.SphereGeometry(0.5);
+      let mat = new THREE.MeshBasicMaterial({color: 0xff0000});
+      criarObjeto(geo, mat, 'enemy');
+    }
+
+    function addBlock() {
+      let geo = new THREE.BoxGeometry(2, 1, 2);
+      let mat = new THREE.MeshBasicMaterial({color: 0x00ff00});
+      criarObjeto(geo, mat, 'platform');
+    }
+
+    function addBigBlock() {
+      let geo = new THREE.BoxGeometry(4, 2, 4);
+      let mat = new THREE.MeshBasicMaterial({color: 0x008800});
+      criarObjeto(geo, mat, 'platform_big');
+    }
+
+    function deleteSelected() {
+      if (objetoSelecionado) {
+        cena.remove(objetoSelecionado);
+        objetos = objetos.filter(o => o !== objetoSelecionado);
+        objetoSelecionado = null;
+      }
+    }
+
+    function exportarJSON() {
+      const data = {
+        levelName: "As Bob's do Mal",
+        objects: objetos.map(o => ({
+          type: o.userData.type,
+          position: { x: o.position.x, y: o.position.y, z: o.position.z }
+        }))
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], {type: "application/json"});
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "fase.json";
+      a.click();
+    }
+
+    let raycaster = new THREE.Raycaster();
+    let mouse = new THREE.Vector2();
+
+    window.addEventListener('pointerdown', e => {
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = - (e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      let intersects = raycaster.intersectObjects(objetos);
+      if (intersects.length > 0) {
+        objetoSelecionado = intersects[0].object;
+      } else {
+        objetoSelecionado = null;
+      }
+    });
+
+    window.addEventListener('pointermove', e => {
+      if (objetoSelecionado && e.buttons === 1) {
+        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = - (e.clientY / window.innerHeight) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+        let intersect = raycaster.intersectObject(chao);
+        if (intersect.length > 0) {
+          objetoSelecionado.position.copy(intersect[0].point);
+          objetoSelecionado.position.y = 0.5;
+        }
+      }
+    });
+
+    function animar() {
+      requestAnimationFrame(animar);
+      controles.update();
+      render.render(cena, camera);
+    }
+    animar();
+  </script>
+</body>
+</html>
